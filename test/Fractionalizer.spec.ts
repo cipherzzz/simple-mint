@@ -1,7 +1,7 @@
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { NFT, Vault } from "../typechain-types";
+import { NFT, Fractionalizer } from "../typechain-types";
 import { BigNumber } from "ethers";
 
 describe("Fractionalize NFT", function () {
@@ -22,11 +22,11 @@ describe("Fractionalize NFT", function () {
     const NFT_DESCRIPTION = "Valuable NFT";
     const NFT_TOKEN1 = 1;
 
-    async function mockTokenPurchase(erc20: Vault, from: any, to: string, tokenAmount: string) {
+    async function mockTokenPurchase(erc20: Fractionalizer, from: any, to: string, tokenAmount: string) {
         await erc20.connect(from).transfer(to, ethers.utils.parseEther(tokenAmount));
     }
 
-    async function fractionalizeListBuy(nft: NFT, collector: any, vault: Vault, NFT_TOKEN1: number, ERC20_MAX_SUPPLY: BigNumber, buyer: any, holder: any) {
+    async function fractionalizeListBuy(nft: NFT, collector: any, vault: Fractionalizer, NFT_TOKEN1: number, ERC20_MAX_SUPPLY: BigNumber, buyer: any, holder: any) {
         const nftCollector = nft.connect(collector);
         await nftCollector.setApprovalForAll(vault.address, true);
         await vault.fractionalize(nft.address, NFT_TOKEN1, ERC20_MAX_SUPPLY);
@@ -66,7 +66,7 @@ describe("Fractionalize NFT", function () {
 
     describe("Deployment", function () {
 
-        it("Should deploy the NFT and Vault contract correctly", async function () {
+        it("Should deploy the NFT and Fractionalizer contract correctly", async function () {
             const { nft, vault } = await loadFixture(deployFractionalizeFixture);
             expect(nft).to.be.ok;
             expect(vault).to.be.ok;
@@ -287,6 +287,47 @@ describe("Fractionalize NFT", function () {
             // convenience method for happy path of fractionalize, list, buy
             const vaultHolder = await fractionalizeListBuy(nft, collector, vault, NFT_TOKEN1, ERC20_MAX_SUPPLY, buyer, holder);
             await expect(vaultHolder.withdrawProceeds(ethers.utils.parseEther("200000"))).to.be.revertedWith("Insufficient balance");
+        });
+    });
+
+    // redeem nft
+    describe("Redeem NFT", function () {
+        it("Should redeem the NFT correctly", async function () {
+            const { nft, vault, collector, buyer, holder } = await loadFixture(deployFractionalizeFixture);
+
+            // nft collector approves the vault to transfer the nft
+            const nftCollector = nft.connect(collector);
+            await nftCollector.setApprovalForAll(vault.address, true);
+            await vault.fractionalize(nft.address, NFT_TOKEN1, ERC20_MAX_SUPPLY);
+            
+            // get nft balance before redeem
+            const nftBalanceBefore = await nft.balanceOf(collector.address);
+            await vault.redeem(ERC20_MAX_SUPPLY);
+            const nftBalanceAfter = await nft.balanceOf(collector.address);
+            expect(nftBalanceAfter.sub(nftBalanceBefore)).to.equal(1);
+            expect(await vault.balanceOf(collector.address)).to.equal(0);
+        });
+
+        it("Should not redeem the NFT if the NFT is not fractionalized", async function () {
+            const { vault, collector } = await loadFixture(deployFractionalizeFixture);
+
+            const vaultCollector = vault.connect(collector);
+            await expect(vaultCollector.redeem(ERC20_MAX_SUPPLY)).to.be.revertedWith("Unable to redeem NFT");
+        });
+
+        it("Should not redeem the NFT if the NFT is listed", async function () {
+            const { nft, vault, collector } = await loadFixture(deployFractionalizeFixture);
+
+            // nft collector approves the vault to transfer the nft
+            const nftCollector = nft.connect(collector);
+            await nftCollector.setApprovalForAll(vault.address, true);
+            await vault.fractionalize(nft.address, NFT_TOKEN1, ERC20_MAX_SUPPLY);
+
+            // nft collector lists the nft
+            await vault.listForSale(ETH_SALE_PRICE);
+
+            const vaultCollector = vault.connect(collector);
+            await expect(vaultCollector.redeem(ERC20_MAX_SUPPLY)).to.be.revertedWith("Unable to redeem NFT");
         });
     });
 });

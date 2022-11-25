@@ -23,6 +23,7 @@ On a high level, the process is as follows
   
 ### Buyer  
 - The `buyer` purchases the listed `ERC721` for the price in eth and transfers it to the `Fractionalizer` contract.
+- If the `buyer` somehow is able to acquire all the tokens on the market, they can just `redeem` all of them for the nft itself. This is probably a low possibility, though. I just included it as it was in the specs.
 
 ---
 
@@ -31,7 +32,29 @@ On a high level, the process is as follows
 # Install dependencies
 npm i
 
+# Setup .env
+mv .env.example .env
+
 # Run Tests
 npx hardhat test
 
+
+# Make sure you update the .env with your Goerli pk
+# Deploy to Goerli
+npx hardhat deploy --network goerli
+
+# Verify contract
+npx hardhat verify-contract --network goerli --address <deployed address>
 ```
+
+## Issues
+- The `owner` of the `Fractionalizer` should be a third party - not the `collector`. I just did it this way for the `collector` to deploy their own fractionalization implementation.
+- The sale price should be a weighted average of a price indicated by `holders` based on their token holdings. ie. If `holder a` holds half the supply, their price should weigh more than `holder b` with a quarter of the supply. I had the `collector` set the price for simplicity in the example.
+
+## Improvement
+- Implement a `factory` that uses the `minimal proxy` pattern to reduce gas costs if we are deploying a single contract per fractionalized nft.
+- See weighted average price issue above
+- Maybe use an auction style of sale?
+- Research adding `withdraw` functions for nft/tokens to prevent unexpected locking within contract
+- If `Fractionalizer` is managed by a third party, add a `curator` fee
+- Potentially add `permit` eip draft for gassless approvals 

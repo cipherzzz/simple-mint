@@ -94,4 +94,18 @@ contract Fractionalizer is ERC20, ERC721Holder, AccessControl, ReentrancyGuard {
         _burn(msg.sender, _amount); // need to burn first to [avoid] reentrancy
         payable(msg.sender).transfer(amountToTransfer);
     }
+
+    // redeem tokens for NFT
+    function redeem(uint256 _amount) external nonReentrant {
+        require(fractionalized && !isForSale, "Unable to redeem NFT");
+        require(_amount == totalSupply(), "Insufficient amount to redeem NFT");
+        require(_amount <= balanceOf(msg.sender), "Insufficient balance");
+
+        _burn(msg.sender, _amount); // need to burn first to [avoid] reentrancy
+        IERC721(collection).safeTransferFrom(
+            address(this),
+            msg.sender,
+            tokenId
+        );
+    }
 }
